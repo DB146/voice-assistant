@@ -19,6 +19,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ListenActivity extends Activity implements RecognitionListener {
 
@@ -27,6 +29,11 @@ public class ListenActivity extends Activity implements RecognitionListener {
             "com.teamsmart.videomanager.tv",      // stable
             "com.liskovsoft.smarttubetv.beta"     // beta
     };
+
+    private static final String FPT = "com.fptplay.launcher";
+    // "vtv1" .. "vtv9" (also "VTV 3") -> vtv3-hd
+    private static final String CHANNEL_URI = "content://com.fptplay.launcher/SWITCH_CHANNEL/vtv%s-hd";
+    private static final Pattern CHANNEL = Pattern.compile("vtv\\s*([1-9])\\b", Pattern.CASE_INSENSITIVE);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable fire = this::execute;
@@ -124,6 +131,12 @@ public class ListenActivity extends Activity implements RecognitionListener {
         String text = sentence.replaceAll("[^\\p{L}\\p{N} ]", " ").trim().replaceAll("\\s+", " ");
         if (text.isEmpty()) return;
 
+        Matcher m = CHANNEL.matcher(text);
+        if (m.find()) {
+            openChannel(m.group(1));
+            return;
+        }
+
         if (text.equalsIgnoreCase("youtube")) {
             for (String pkg : SMARTTUBE) {
                 Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
@@ -146,6 +159,25 @@ public class ListenActivity extends Activity implements RecognitionListener {
             }
         }
         Toast.makeText(this, "SmartTube not installed", Toast.LENGTH_LONG).show();
+    }
+
+    private void openChannel(String number) {
+        if (!CHANNEL_URI.isEmpty()) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(String.format(CHANNEL_URI, number)))
+                        .setPackage(FPT));
+                return;
+            } catch (ActivityNotFoundException ignored) {
+            }
+        }
+        Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(FPT);
+        if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(FPT);
+        if (launch == null) {
+            Toast.makeText(this, "FPT launcher not installed", Toast.LENGTH_LONG).show();
+            return;
+        }
+        launch.putExtra("channel", number);
+        startActivity(launch);
     }
 
     @Override public void onReadyForSpeech(Bundle p) { status.setText("Listening…"); }
