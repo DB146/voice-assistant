@@ -14,7 +14,7 @@
     </queries>
 
     <application
-        android:label="Voice Assist"
+        android:label="Trợ lý giọng nói"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
         <activity
