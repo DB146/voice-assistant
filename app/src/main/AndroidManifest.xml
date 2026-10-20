@@ -10,6 +10,7 @@
     <queries>
         <package android:name="com.teamsmart.videomanager.tv" />
         <package android:name="com.liskovsoft.smarttubetv.beta" />
+        <package android:name="com.fptplay.launcher" />
     </queries>
 
     <application
