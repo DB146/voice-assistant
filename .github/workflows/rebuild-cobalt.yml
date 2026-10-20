@@ -60,7 +60,7 @@ jobs:
       - name: Create Release and Upload
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "auto-${{ github.run_id }}"
+          tag_name: "cobalt-mod"
           files: cobalt-mod.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
