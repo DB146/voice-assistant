@@ -18,22 +18,44 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Locale;
 
 public class ListenActivity extends Activity implements RecognitionListener {
 
-    private static final long SILENCE_MS = 3000;
+    private static final long SILENCE_MS = 1000;
     private static final String[] SMARTTUBE = {
-            "com.teamsmart.videomanager.tv",      // stable
-            "com.liskovsoft.smarttubetv.beta"     // beta
+            "com.teamsmart.videomanager.tv",      // bản chính thức
+            "com.liskovsoft.smarttubetv.beta"     // bản beta
+    };
+    private static final String FPT = "com.fptplay.launcher";
+
+    // Kênh thường: nói tên kênh (bỏ gạch, bỏ "-hd"), ví dụ "vtv3", "htv7", "arirang".
+    private static final String[] CHANNELS = {
+            "fpt-play", "vtv1-hd", "vtv2-hd", "vtv3-hd", "vtv4-hd", "vtv5-hd", "vtv6-hd",
+            "vtv7-hd", "vtv8-hd", "vtv9-hd", "vtv10", "vtv5-tay-nam-bo", "htv7-hd", "htv9-hd",
+            "thvl1", "vtv5-tay-nguyen", "asian-food-channel", "outdoor-channel",
+            "da-vinci-learning", "fim360", "htvc-the-thao", "france-24", "arirang", "nhk-world-hd",
+            "channel-newsasia", "tv5-monde", "dw", "kbs-world", "cnbc", "kix", "vietnam-today",
+            "quoc-phong-vn", "antv", "htv5-bchannel", "mien-tay-thdt2", "htv1", "htv2", "htv3",
+            "htvc-plus", "htvc-du-lich", "htvc-phu-nu", "htvc-gia-dinh", "htv4",
+            "htvc-thuan-viet-hd", "htvc-phim"
     };
 
-    private static final String FPT = "com.fptplay.launcher";
-    // "vtv1" .. "vtv9" (also "VTV 3") -> vtv3-hd
-    private static final String CHANNEL_URI = "content://com.fptplay.launcher/SWITCH_CHANNEL/vtv%s-hd";
-    private static final Pattern CHANNEL = Pattern.compile("vtv\\s*([1-9])\\b", Pattern.CASE_INSENSITIVE);
+    // Kênh tỉnh/thành: phải nói "kênh" + tên + số nếu có, ví dụ "kênh hà nội 1", "kênh cần thơ 3".
+    private static final String[] PROVINCES = {
+            "hanoitv-1", "hanoitv-2", "vinh-long-2", "vinh-long-3", "vinh-long-4-hd", "an-giang",
+            "an-giang-3", "bac-ninh-1", "lam-dong-2", "gia-lai-1", "ca-mau", "can-tho", "cao-bang",
+            "da-nang-1", "da-nang-2", "dak-lak", "dien-bien", "dong-nai-1", "dong-nai-2",
+            "dong-thap", "ha-tinh", "hai-phong", "hai-phong-3", "can-tho-2", "thua-thien-hue",
+            "hung-yen", "khanh-hoa", "an-giang-1", "quang-ngai-2", "lai-chau", "lam-dong",
+            "lang-son", "lao-cai", "tay-ninh", "nghe-an", "ninh-binh", "khanh-hoa-1", "phu-tho",
+            "quang-ngai-1", "quang-ninh-1", "quang-ninh-3", "quang-tri", "can-tho-3", "son-la",
+            "thai-nguyen", "thanh-hoa", "vinh-long-5", "tuyen-quang"
+    };
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable fire = this::execute;
@@ -76,13 +98,13 @@ public class ListenActivity extends Activity implements RecognitionListener {
         hint.setTextColor(Color.GRAY);
         hint.setTextSize(20);
         hint.setGravity(Gravity.CENTER);
-        hint.setText("Runs after 3 seconds of silence · Press Back to cancel");
+        hint.setText("Tự chạy sau 1 giây im lặng · Nhấn Back để hủy");
 
         root.addView(status);
         root.addView(heard);
         root.addView(hint);
         setContentView(root);
-        status.setText("Starting…");
+        status.setText("Đang khởi động…");
     }
 
     @Override
@@ -96,7 +118,7 @@ public class ListenActivity extends Activity implements RecognitionListener {
 
     private void listen() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            Toast.makeText(this, "Speech recognition not available", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Nhận dạng giọng nói không khả dụng", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -104,6 +126,7 @@ public class ListenActivity extends Activity implements RecognitionListener {
         recognizer.setRecognitionListener(this);
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         recognizer.startListening(i);
     }
@@ -114,7 +137,7 @@ public class ListenActivity extends Activity implements RecognitionListener {
         if (list == null || list.isEmpty() || list.get(0).trim().isEmpty()) return;
         latest = list.get(0).trim();
         heard.setText("“" + latest + "”");
-        status.setText("Heard…");
+        status.setText("Đã nghe…");
         handler.removeCallbacks(fire);
         handler.postDelayed(fire, SILENCE_MS);
     }
@@ -127,13 +150,36 @@ public class ListenActivity extends Activity implements RecognitionListener {
         finish();
     }
 
+    /** Bỏ dấu, chữ thường, bỏ ký tự lạ, ghép "vtv 1" -> "vtv1". */
+    private static String norm(String s) {
+        s = Normalizer.normalize(s.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").replace('đ', 'd');
+        s = s.replaceAll("[^a-z0-9]+", " ").trim();
+        return s.replaceAll("([a-z])\\s+(\\d)", "$1$2");
+    }
+
+    /** Trả về ID kênh nếu câu nói chứa tên kênh (ưu tiên tên dài nhất). Kênh tỉnh cần có chữ "kênh". */
+    private static String findChannel(String sentence) {
+        String text = " " + norm(sentence) + " ";
+        boolean hasKenh = text.contains(" kenh");
+        ArrayList<String> ids = new ArrayList<>(Arrays.asList(CHANNELS));
+        if (hasKenh) ids.addAll(Arrays.asList(PROVINCES));
+        ids.sort(Comparator.comparingInt((String s) -> s.length()).reversed());
+        for (String id : ids) {
+            String key = norm(id.replace("hanoitv-", "ha-noi-"));
+            if (text.contains(" " + key + " ")) return id;
+            if (key.endsWith(" hd") && text.contains(" " + key.substring(0, key.length() - 3) + " ")) return id;
+        }
+        return null;
+    }
+
     private void handle(String sentence) {
         String text = sentence.replaceAll("[^\\p{L}\\p{N} ]", " ").trim().replaceAll("\\s+", " ");
         if (text.isEmpty()) return;
 
-        Matcher m = CHANNEL.matcher(text);
-        if (m.find()) {
-            openChannel(m.group(1));
+        String channel = findChannel(text);
+        if (channel != null) {
+            openChannel(channel);
             return;
         }
 
@@ -146,7 +192,7 @@ public class ListenActivity extends Activity implements RecognitionListener {
                     return;
                 }
             }
-            Toast.makeText(this, "SmartTube not installed", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Chưa cài SmartTube", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -158,29 +204,19 @@ public class ListenActivity extends Activity implements RecognitionListener {
             } catch (ActivityNotFoundException ignored) {
             }
         }
-        Toast.makeText(this, "SmartTube not installed", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Chưa cài SmartTube", Toast.LENGTH_LONG).show();
     }
 
-    private void openChannel(String number) {
-        if (!CHANNEL_URI.isEmpty()) {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(String.format(CHANNEL_URI, number)))
-                        .setPackage(FPT));
-                return;
-            } catch (ActivityNotFoundException ignored) {
-            }
+    private void openChannel(String id) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("content://" + FPT + "/SWITCH_CHANNEL/" + id)).setPackage(FPT));
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "Chưa cài FPT Play", Toast.LENGTH_LONG).show();
         }
-        Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(FPT);
-        if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(FPT);
-        if (launch == null) {
-            Toast.makeText(this, "FPT launcher not installed", Toast.LENGTH_LONG).show();
-            return;
-        }
-        launch.putExtra("channel", number);
-        startActivity(launch);
     }
 
-    @Override public void onReadyForSpeech(Bundle p) { status.setText("Listening…"); }
+    @Override public void onReadyForSpeech(Bundle p) { status.setText("Đang nghe…"); }
     @Override public void onPartialResults(Bundle b) { update(b); }
     @Override public void onResults(Bundle b) { update(b); }
 
@@ -188,10 +224,10 @@ public class ListenActivity extends Activity implements RecognitionListener {
     public void onError(int error) {
         if (done) return;
         if (latest.isEmpty()) {
-            status.setText("Didn't catch that");
+            status.setText("Không nghe rõ");
             handler.postDelayed(this::finish, 1500);
         }
-        // otherwise the pending timer will run the action with what was heard
+        // nếu đã nghe được gì đó, bộ đếm sẽ tự chạy lệnh
     }
 
     @Override
