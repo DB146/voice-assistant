@@ -26,7 +26,7 @@ import java.util.Locale;
 
 public class ListenActivity extends Activity implements RecognitionListener {
 
-    private static final long SILENCE_MS = 1000;
+    private static final long SILENCE_MS = 100;
     private static final String[] SMARTTUBE = {
             "com.teamsmart.videomanager.tv",      // bản chính thức
             "com.liskovsoft.smarttubetv.beta"     // bản beta
@@ -98,7 +98,7 @@ public class ListenActivity extends Activity implements RecognitionListener {
         hint.setTextColor(Color.GRAY);
         hint.setTextSize(20);
         hint.setGravity(Gravity.CENTER);
-        hint.setText("Tự chạy sau 1 giây im lặng · Nhấn Back để hủy");
+        hint.setText("Nhấn Back để hủy");
 
         root.addView(status);
         root.addView(heard);
