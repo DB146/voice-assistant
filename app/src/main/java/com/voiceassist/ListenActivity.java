@@ -153,19 +153,37 @@ public class ListenActivity extends Activity implements RecognitionListener {
         return s.replaceAll("([a-z])\\s+(\\d)", "$1$2");
     }
 
-    /** Trả về ID kênh nếu câu nói chứa tên kênh (ưu tiên tên dài nhất). */
+/** Trả về ID kênh nếu CẢ CÂU (sau khi bỏ từ đệm đầu câu) là tên kênh, đủ hoặc một phần. */
     private static String findChannel(String sentence) {
-        String text = " " + norm(sentence) + " ";
-        String best = null;
-        int bestLen = 0;
+        String[] words = norm(sentence).split(" ");
+        int start = 0;
+        while (start < words.length && FILLER.contains(words[start])) start++;
+        if (start >= words.length) return null;
+        String p = String.join(" ", java.util.Arrays.copyOfRange(words, start, words.length));
+
+        // 1) Khớp đúng toàn bộ tên kênh
         for (String id : CHANNELS) {
-            String key = norm(id.replace("hanoitv-", "ha-noi-").replace("-hd", ""));
-            if (key.length() > bestLen && text.contains(" " + key + " ")) {
-                best = id;
-                bestLen = key.length();
+            if (channelKey(id).equals(p)) return id;
+        }
+
+        // 2) Khớp một phần: p là phần đầu của tên kênh -> chọn tên ngắn nhất, rồi số nhỏ nhất
+        String pick = null;
+        int pickLen = Integer.MAX_VALUE, pickNum = Integer.MAX_VALUE;
+        for (String id : CHANNELS) {
+            String key = channelKey(id);
+            if (!key.startsWith(p)) continue;
+            if (key.length() > p.length()) {
+                char next = key.charAt(p.length());
+                if (next != ' ' && !Character.isDigit(next)) continue;
+            }
+            int num = firstNumber(key);
+            if (key.length() < pickLen || (key.length() == pickLen && num < pickNum)) {
+                pick = id;
+                pickLen = key.length();
+                pickNum = num;
             }
         }
-        return best;
+        return pick;
     }
 
     private void handle(String sentence) {
