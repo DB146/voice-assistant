@@ -152,6 +152,19 @@ public class ListenActivity extends Activity implements RecognitionListener {
         s = s.replaceAll("[^a-z0-9]+", " ").trim();
         return s.replaceAll("([a-z])\\s+(\\d)", "$1$2");
     }
+        // Từ đệm đứng đầu câu, bị bỏ khi so khớp: "mở kênh htv5" -> "htv5"
+    private static final java.util.Set<String> FILLER = new java.util.HashSet<>(
+            java.util.Arrays.asList("mo", "bat", "xem", "kenh", "chuyen", "sang", "den", "qua",
+                    "len", "cho", "toi", "truyen", "hinh", "dai", "di", "nhe", "giup"));
+
+    private static String channelKey(String id) {
+        return norm(id.replace("hanoitv-", "ha-noi-").replace("-hd", ""));
+    }
+
+    private static int firstNumber(String s) {
+        Matcher m = Pattern.compile("\\d+").matcher(s);
+        return m.find() ? Integer.parseInt(m.group()) : Integer.MAX_VALUE;
+    }
 
 /** Trả về ID kênh nếu CẢ CÂU (sau khi bỏ từ đệm đầu câu) là tên kênh, đủ hoặc một phần. */
     private static String findChannel(String sentence) {
