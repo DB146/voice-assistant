@@ -49,7 +49,7 @@ public class ListenActivity extends Activity implements RecognitionListener {
             "hung-yen", "khanh-hoa", "an-giang-1", "quang-ngai-2", "lai-chau", "lam-dong",
             "lang-son", "lao-cai", "tay-ninh", "nghe-an", "ninh-binh", "khanh-hoa-1", "phu-tho",
             "quang-ngai-1", "quang-ninh-1", "quang-ninh-3", "quang-tri", "can-tho-3", "son-la",
-            "thai-nguyen", "thanh-hoa", "vinh-long-5", "tuyen-quang","cartoon-network-hd","da-vinci-hd"
+            "thai-nguyen", "thanh-hoa", "vinh-long-5", "tuyen-quang","da-vinci-learning"
     };
 
     private final Handler handler = new Handler(Looper.getMainLooper());
