@@ -26,7 +26,7 @@ import java.util.Locale;
 
 public class ListenActivity extends Activity implements RecognitionListener {
 
-    private static final long SILENCE_MS = 100;
+    private static final long SILENCE_MS = 1000;
     private static final String[] SMARTTUBE = {
             "com.teamsmart.videomanager.tv",      // bản chính thức
             "com.liskovsoft.smarttubetv.beta"     // bản beta
