@@ -20,33 +20,28 @@ import android.widget.Toast;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ListenActivity extends Activity implements RecognitionListener {
 
-    private static final long SILENCE_MS = 1000;
+    private static final long SILENCE_MS = 1200;
     private static final String[] SMARTTUBE = {
             "com.teamsmart.videomanager.tv",      // bản chính thức
             "com.liskovsoft.smarttubetv.beta"     // bản beta
     };
     private static final String FPT = "com.fptplay.launcher";
+    private static final Pattern YOUTUBE = Pattern.compile("(?i)\\byou\\s?tube\\b");
 
-    // Kênh thường: nói tên kênh (bỏ gạch, bỏ "-hd"), ví dụ "vtv3", "htv7", "arirang".
+    // ID kênh FPT Play. Nói tên kênh (bỏ gạch, bỏ "-hd"), ví dụ "vtv3", "htv7", "hà nội 1", "cần thơ 3".
     private static final String[] CHANNELS = {
             "fpt-play", "vtv1-hd", "vtv2-hd", "vtv3-hd", "vtv4-hd", "vtv5-hd", "vtv6-hd",
             "vtv7-hd", "vtv8-hd", "vtv9-hd", "vtv10", "vtv5-tay-nam-bo", "htv7-hd", "htv9-hd",
-            "thvl1", "vtv5-tay-nguyen", "asian-food-channel", "outdoor-channel",
-            "da-vinci-learning", "fim360", "htvc-the-thao", "france-24", "arirang", "nhk-world-hd",
-            "channel-newsasia", "tv5-monde", "dw", "kbs-world", "cnbc", "kix", "vietnam-today",
+            "thvl1", "vtv5-tay-nguyen", "fim360", "htvc-the-thao", "vietnam-today",
             "quoc-phong-vn", "antv", "htv5-bchannel", "mien-tay-thdt2", "htv1", "htv2", "htv3",
             "htvc-plus", "htvc-du-lich", "htvc-phu-nu", "htvc-gia-dinh", "htv4",
-            "htvc-thuan-viet-hd", "htvc-phim"
-    };
-
-    // Kênh tỉnh/thành: phải nói "kênh" + tên + số nếu có, ví dụ "kênh hà nội 1", "kênh cần thơ 3".
-    private static final String[] PROVINCES = {
+            "htvc-thuan-viet-hd", "htvc-phim",
             "hanoitv-1", "hanoitv-2", "vinh-long-2", "vinh-long-3", "vinh-long-4-hd", "an-giang",
             "an-giang-3", "bac-ninh-1", "lam-dong-2", "gia-lai-1", "ca-mau", "can-tho", "cao-bang",
             "da-nang-1", "da-nang-2", "dak-lak", "dien-bien", "dong-nai-1", "dong-nai-2",
@@ -158,50 +153,64 @@ public class ListenActivity extends Activity implements RecognitionListener {
         return s.replaceAll("([a-z])\\s+(\\d)", "$1$2");
     }
 
-    /** Trả về ID kênh nếu câu nói chứa tên kênh (ưu tiên tên dài nhất). Kênh tỉnh cần có chữ "kênh". */
+    /** Trả về ID kênh nếu câu nói chứa tên kênh (ưu tiên tên dài nhất). */
     private static String findChannel(String sentence) {
         String text = " " + norm(sentence) + " ";
-        boolean hasKenh = text.contains(" kenh");
-        ArrayList<String> ids = new ArrayList<>(Arrays.asList(CHANNELS));
-        if (hasKenh) ids.addAll(Arrays.asList(PROVINCES));
-        ids.sort(Comparator.comparingInt((String s) -> s.length()).reversed());
-        for (String id : ids) {
-            String key = norm(id.replace("hanoitv-", "ha-noi-"));
-            if (text.contains(" " + key + " ")) return id;
-            if (key.endsWith(" hd") && text.contains(" " + key.substring(0, key.length() - 3) + " ")) return id;
+        String best = null;
+        int bestLen = 0;
+        for (String id : CHANNELS) {
+            String key = norm(id.replace("hanoitv-", "ha-noi-").replace("-hd", ""));
+            if (key.length() > bestLen && text.contains(" " + key + " ")) {
+                best = id;
+                bestLen = key.length();
+            }
         }
-        return null;
+        return best;
     }
 
     private void handle(String sentence) {
         String text = sentence.replaceAll("[^\\p{L}\\p{N} ]", " ").trim().replaceAll("\\s+", " ");
         if (text.isEmpty()) return;
 
+        // Có chữ "youtube": bỏ mọi từ trước nó, phần sau là từ khóa tìm kiếm.
+        Matcher m = YOUTUBE.matcher(text);
+        if (m.find()) {
+            String query = text.substring(m.end()).trim();
+            if (query.isEmpty()) openSmartTube();
+            else searchYoutube(query);
+            return;
+        }
+
+        // Không có "youtube": nếu có tên kênh thì mở kênh đó.
         String channel = findChannel(text);
         if (channel != null) {
             openChannel(channel);
             return;
         }
 
-        if (text.equalsIgnoreCase("youtube")) {
-            for (String pkg : SMARTTUBE) {
-                Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
-                if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(pkg);
-                if (launch != null) {
-                    startActivity(launch);
-                    return;
-                }
-            }
-            Toast.makeText(this, "Chưa cài SmartTube", Toast.LENGTH_LONG).show();
-            return;
-        }
+        // Không khớp kênh nào: tìm kiếm cả câu trên YouTube.
+        searchYoutube(text);
+    }
 
-        Uri uri = Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(text));
+    private void openSmartTube() {
+        for (String pkg : SMARTTUBE) {
+            Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
+            if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(pkg);
+            if (launch != null) {
+                startActivity(launch);
+                return;
+            }
+        }
+        Toast.makeText(this, "Chưa cài SmartTube", Toast.LENGTH_LONG).show();
+    }
+
+    private void searchYoutube(String query) {
+        Uri uri = Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query));
         for (String pkg : SMARTTUBE) {
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, uri).setPackage(pkg));
                 return;
-            } catch (ActivityNotFoundException ignored) {
+            } catch (ActivityNotFoundException | SecurityException ignored) {
             }
         }
         Toast.makeText(this, "Chưa cài SmartTube", Toast.LENGTH_LONG).show();
@@ -211,14 +220,23 @@ public class ListenActivity extends Activity implements RecognitionListener {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW,
                     Uri.parse("content://" + FPT + "/SWITCH_CHANNEL/" + id)).setPackage(FPT));
-        } catch (ActivityNotFoundException e) {
+        } catch (ActivityNotFoundException | SecurityException e) {
             Toast.makeText(this, "Chưa cài FPT Play", Toast.LENGTH_LONG).show();
         }
     }
 
     @Override public void onReadyForSpeech(Bundle p) { status.setText("Đang nghe…"); }
     @Override public void onPartialResults(Bundle b) { update(b); }
-    @Override public void onResults(Bundle b) { update(b); }
+
+    @Override
+    public void onResults(Bundle b) {
+        update(b);
+        // Kết quả cuối cùng: chạy lệnh ngay, bộ đếm chỉ là dự phòng.
+        if (!latest.isEmpty()) {
+            handler.removeCallbacks(fire);
+            execute();
+        }
+    }
 
     @Override
     public void onError(int error) {
