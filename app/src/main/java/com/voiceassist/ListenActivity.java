@@ -31,7 +31,8 @@ import java.util.regex.Pattern;
 
 /**
  * Voice launcher: listens for one sentence, then either
- *  - searches YouTube (SmartTube) when the sentence contains "youtube",
+ *  - searches YouTube (SmartTube / TizenTube) when the sentence contains "youtube",
+ *  - opens CloudStream when the sentence is just "tv",
  *  - opens an FPT Play channel when the sentence is a channel name,
  *  - otherwise searches the whole sentence on YouTube.
  *
@@ -46,29 +47,35 @@ public class ListenActivity extends Activity {
     // ---------------------------------------------------------------- constants
 
     private static final long SILENCE_MS = 1200;
-    private static final long ERROR_CLOSE_MS = 1500;
     private static final int REQUEST_AUDIO = 1;
     private static final String LANGUAGE = "vi-VN";
 
     private static final Pattern YOUTUBE = Pattern.compile("(?i)\\byou\\s?tube\\b");
 
-    // UI text
-    private static final String TXT_STARTING = "Đang khởi động…";
+    // Saying just this word (after filler like "mở", "xem") opens CloudStream.
+    private static final String KEYWORD_TV = "tv";
+
     private static final String TXT_LISTENING = "Đang nghe…";
     private static final String TXT_HEARD = "Đã nghe…";
-    private static final String TXT_NOT_UNDERSTOOD = "Không nghe rõ";
     private static final String TXT_CANCEL_HINT = "Nhấn Back để hủy";
     private static final String TXT_NO_RECOGNITION = "Nhận dạng giọng nói không khả dụng";
 
-    // UI sizes
     private static final int PAD_H = 96, PAD_V = 48;
     private static final int SIZE_STATUS = 24, SIZE_HEARD = 40, SIZE_HINT = 20;
 
-    // SmartTube package names
+    // YouTube client package names (tried in this order)
     private static final String[] SMARTTUBE = {
-            "com.teamsmart.videomanager.tv",      // bản chính thức
-            "com.liskovsoft.smarttubetv.beta"     // bản beta
+            "com.teamsmart.videomanager.tv",      // SmartTube bản chính thức
+            "com.liskovsoft.smarttubetv.beta",    // SmartTube bản beta
+            "io.gh.reisxd.tizentube.cobalt"       // TizenTube Cobalt
     };
+
+    // CloudStream package names (tried in this order)
+    private static final String[] CLOUDSTREAM = {
+            "com.lagradost.cloudstream3",               // bản chính thức
+            "com.lagradost.cloudstream3.prerelease"     // bản prerelease
+    };
+
     private static final String FPT = "com.fptplay.launcher";
 
     // ID kênh FPT Play. Nói tên kênh (bỏ gạch, bỏ "-hd"), ví dụ "vtv3", "htv7", "hà nội 1", "cần thơ 3".
@@ -150,7 +157,6 @@ public class ListenActivity extends Activity {
         root.addView(heardView);
         root.addView(hint);
         setContentView(root);
-        statusView.setText(TXT_STARTING);
     }
 
     private TextView createText(int color, int size) {
@@ -195,16 +201,6 @@ public class ListenActivity extends Activity {
             // Final result: run the command now; the silence timer is only a fallback.
             if (!latestTranscript.isEmpty()) executeNow();
         }
-
-        @Override
-        public void onError(int error) {
-            if (done) return;
-            if (latestTranscript.isEmpty()) {
-                statusView.setText(TXT_NOT_UNDERSTOOD);
-                handler.postDelayed(ListenActivity.this::finish, ERROR_CLOSE_MS);
-            }
-            // If something was already heard, the silence timer will run the command.
-        }
     };
 
     /** Stores the best transcript and (re)starts the silence timer. */
@@ -244,20 +240,25 @@ public class ListenActivity extends Activity {
             return;
         }
 
-        // 2) Whole sentence is a channel name: open that channel.
+        // 2) Whole sentence is "tv" (optionally "mở tv", "xem tv"...): open CloudStream.
+        if (ChannelMatcher.stripFiller(Text.norm(text)).equals(KEYWORD_TV)) {
+            launcher.openCloudStream();
+            return;
+        }
+
+        // 3) Whole sentence is a channel name: open that channel.
         String channel = channelMatcher.find(text);
         if (channel != null) {
             launcher.openChannel(channel);
             return;
         }
 
-        // 3) Fallback: search the whole sentence on YouTube.
+        // 4) Fallback: search the whole sentence on YouTube.
         launcher.searchYoutube(text);
     }
 
     // ================================================================ helpers
 
-    /** String helpers. */
     private static final class Text {
         private static final Pattern DIGITS = Pattern.compile("\\d+");
 
@@ -285,7 +286,7 @@ public class ListenActivity extends Activity {
         /** Leading words dropped before matching: "mở kênh htv5" -> "htv5". */
         private static final Set<String> FILLER = new HashSet<>(Arrays.asList(
                 "mo", "bat", "xem", "kenh", "chuyen", "sang", "den", "qua",
-                "len", "cho", "toi", "truyen", "hinh", "dai", "di", "nhe", "giup"));
+                "len", "cho", "toi", "truyen", "hinh", "dai"));
 
         private final Map<String, String> keyToId = new LinkedHashMap<>();  // "vtv3" -> "vtv3-hd"
 
@@ -317,7 +318,7 @@ public class ListenActivity extends Activity {
             return Text.norm(id.replace("hanoitv-", "ha-noi-").replace("-hd", ""));
         }
 
-        private static String stripFiller(String normalized) {
+        static String stripFiller(String normalized) {
             String[] words = normalized.split(" ");
             int i = 0;
             while (i < words.length && FILLER.contains(words[i])) i++;
@@ -338,9 +339,10 @@ public class ListenActivity extends Activity {
         }
     }
 
-    /** Starts SmartTube and FPT Play. */
+    /** Starts SmartTube / TizenTube, CloudStream and FPT Play. */
     private static final class AppLauncher {
         private static final String TXT_NO_SMARTTUBE = "Chưa cài SmartTube";
+        private static final String TXT_NO_CLOUDSTREAM = "Chưa cài CloudStream";
         private static final String TXT_NO_FPT = "Chưa cài FPT Play";
 
         private final Activity activity;
@@ -350,14 +352,11 @@ public class ListenActivity extends Activity {
         }
 
         void openSmartTube() {
-            for (String pkg : SMARTTUBE) {
-                Intent launch = launchIntentFor(pkg);
-                if (launch != null) {
-                    activity.startActivity(launch);
-                    return;
-                }
-            }
-            toast(TXT_NO_SMARTTUBE);
+            if (!launchFirstInstalled(SMARTTUBE)) toast(TXT_NO_SMARTTUBE);
+        }
+
+        void openCloudStream() {
+            if (!launchFirstInstalled(CLOUDSTREAM)) toast(TXT_NO_CLOUDSTREAM);
         }
 
         void searchYoutube(String query) {
@@ -367,7 +366,6 @@ public class ListenActivity extends Activity {
                     activity.startActivity(new Intent(Intent.ACTION_VIEW, uri).setPackage(pkg));
                     return;
                 } catch (ActivityNotFoundException | SecurityException ignored) {
-                    // try the next SmartTube build
                 }
             }
             toast(TXT_NO_SMARTTUBE);
@@ -380,6 +378,17 @@ public class ListenActivity extends Activity {
             } catch (ActivityNotFoundException | SecurityException e) {
                 toast(TXT_NO_FPT);
             }
+        }
+
+        private boolean launchFirstInstalled(String[] packages) {
+            for (String pkg : packages) {
+                Intent launch = launchIntentFor(pkg);
+                if (launch != null) {
+                    activity.startActivity(launch);
+                    return true;
+                }
+            }
+            return false;
         }
 
         private Intent launchIntentFor(String pkg) {
