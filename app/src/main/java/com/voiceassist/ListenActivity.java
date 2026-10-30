@@ -52,8 +52,9 @@ public class ListenActivity extends Activity {
 
     private static final Pattern YOUTUBE = Pattern.compile("(?i)\\byou\\s?tube\\b");
 
-    // Saying just this word (after filler like "mở", "xem") opens CloudStream.
-    private static final String KEYWORD_TV = "tv";
+    // Saying just one of these (after filler like "mở", "xem") opens CloudStream. Normalized form.
+    private static final Set<String> CLOUDSTREAM_KEYWORDS =
+            new HashSet<>(Arrays.asList("tv", "tivi", "tong hop"));
 
     private static final String TXT_LISTENING = "Đang nghe…";
     private static final String TXT_HEARD = "Đã nghe…";
@@ -240,8 +241,8 @@ public class ListenActivity extends Activity {
             return;
         }
 
-        // 2) Whole sentence is "tv" (optionally "mở tv", "xem tv"...): open CloudStream.
-        if (ChannelMatcher.stripFiller(Text.norm(text)).equals(KEYWORD_TV)) {
+        // 2) Whole sentence is "tv", "tivi" or "tổng hợp" (optionally "mở tivi"...): open CloudStream.
+        if (CLOUDSTREAM_KEYWORDS.contains(ChannelMatcher.stripFiller(Text.norm(text)))) {
             launcher.openCloudStream();
             return;
         }
