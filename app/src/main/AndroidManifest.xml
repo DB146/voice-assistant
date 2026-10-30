@@ -10,6 +10,9 @@
     <queries>
         <package android:name="com.teamsmart.videomanager.tv" />
         <package android:name="com.liskovsoft.smarttubetv.beta" />
+        <package android:name="io.gh.reisxd.tizentube.cobalt" />
+        <package android:name="com.lagradost.cloudstream3" />
+        <package android:name="com.lagradost.cloudstream3.prerelease" />
         <package android:name="com.fptplay.launcher" />
     </queries>
 
