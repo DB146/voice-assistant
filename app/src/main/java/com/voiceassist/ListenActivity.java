@@ -79,6 +79,10 @@ public class ListenActivity extends Activity {
 
     private static final String FPT = "com.fptplay.launcher";
 
+    // OpenIPTV (DB146/openiptv): "kênh 5", "số 12", a bare number, or "kênh vtv3" opens that channel there.
+    private static final String OPENIPTV = "com.example.openiptv";
+    private static final String OPENIPTV_PLAY = "com.example.openiptv.PLAY";
+
     // ID kênh FPT Play. Nói tên kênh (bỏ gạch, bỏ "-hd"), ví dụ "vtv3", "htv7", "hà nội 1", "cần thơ 3".
     private static final String[] CHANNELS = {
             "fpt-play", "vtv1-hd", "vtv2-hd", "vtv3-hd", "vtv4-hd", "vtv5-hd", "vtv6-hd",
@@ -247,15 +251,39 @@ public class ListenActivity extends Activity {
             return;
         }
 
-        // 3) Whole sentence is a channel name: open that channel.
+        // 3) "kênh 5" / "số 12" / bare number / "kênh vtv3": open it in OpenIPTV when it is installed.
+        String iptv = iptvQuery(text);
+        if (iptv != null && launcher.openIptv(iptv)) return;
+
+        // 4) Whole sentence is a channel name: open that channel.
         String channel = channelMatcher.find(text);
         if (channel != null) {
             launcher.openChannel(channel);
             return;
         }
 
-        // 4) Fallback: search the whole sentence on YouTube.
+        // 5) Fallback: search the whole sentence on YouTube.
         launcher.searchYoutube(text);
+    }
+
+    /**
+     * Returns the channel number or name to send to OpenIPTV, or null if the sentence is not a
+     * channel command. Accepts "5", "kênh 5", "số 5", "mở kênh vtv3" (leading filler is ignored).
+     */
+    private static String iptvQuery(String sentence) {
+        // Own normalisation: Text.norm() would glue "kenh 5" into "kenh5".
+        String plain = Normalizer.normalize(sentence.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").replace('đ', 'd').replaceAll("[^a-z0-9]+", " ").trim();
+        if (plain.isEmpty()) return null;
+        String[] w = plain.split(" ");
+        int i = 0;
+        while (i < w.length && ChannelMatcher.isFiller(w[i])) i++;
+        boolean marked = false;
+        if (i < w.length && (w[i].equals("kenh") || w[i].equals("so"))) { marked = true; i++; }
+        if (i >= w.length) return null;
+        String rest = String.join(" ", Arrays.copyOfRange(w, i, w.length));
+        boolean number = rest.matches("\\d{1,4}");
+        return (number || marked) ? rest : null;
     }
 
     // ================================================================ helpers
@@ -319,6 +347,10 @@ public class ListenActivity extends Activity {
             return Text.norm(id.replace("hanoitv-", "ha-noi-").replace("-hd", ""));
         }
 
+        static boolean isFiller(String word) {
+            return FILLER.contains(word) && !word.equals("kenh");
+        }
+
         static String stripFiller(String normalized) {
             String[] words = normalized.split(" ");
             int i = 0;
@@ -370,6 +402,20 @@ public class ListenActivity extends Activity {
                 }
             }
             toast(TXT_NO_SMARTTUBE);
+        }
+
+        /** Opens a channel by number ("5") or name ("vtv3") in OpenIPTV. False if it is not installed. */
+        boolean openIptv(String query) {
+            Intent intent = new Intent(OPENIPTV_PLAY).setPackage(OPENIPTV)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            if (query.matches("\\d+")) intent.putExtra("number", Integer.parseInt(query));
+            else intent.putExtra("name", query);
+            try {
+                activity.startActivity(intent);
+                return true;
+            } catch (ActivityNotFoundException | SecurityException e) {
+                return false;
+            }
         }
 
         void openChannel(String id) {
