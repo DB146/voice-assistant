@@ -32,7 +32,6 @@ import java.util.regex.Pattern;
 /**
  * Voice launcher: listens for one sentence, then either
  *  - searches YouTube (SmartTube / TizenTube) when the sentence contains "youtube",
- *  - opens CloudStream when the sentence is just "tv",
  *  - opens an FPT Play channel when the sentence is a channel name,
  *  - otherwise searches the whole sentence on YouTube.
  *
@@ -52,10 +51,6 @@ public class ListenActivity extends Activity {
 
     private static final Pattern YOUTUBE = Pattern.compile("(?i)\\byou\\s?tube\\b");
 
-    // Saying just one of these (after filler like "mở", "xem") opens CloudStream. Normalized form.
-    private static final Set<String> CLOUDSTREAM_KEYWORDS =
-            new HashSet<>(Arrays.asList("tv", "tivi", "tong hop"));
-
     private static final String TXT_LISTENING = "Đang nghe…";
     private static final String TXT_HEARD = "Đã nghe…";
     private static final String TXT_CANCEL_HINT = "Nhấn Back để hủy";
@@ -69,12 +64,6 @@ public class ListenActivity extends Activity {
             "com.teamsmart.videomanager.tv",      // SmartTube bản chính thức
             "com.liskovsoft.smarttubetv.beta",    // SmartTube bản beta
             "io.gh.reisxd.tizentube.cobalt"       // TizenTube Cobalt
-    };
-
-    // CloudStream package names (tried in this order)
-    private static final String[] CLOUDSTREAM = {
-            "com.lagradost.cloudstream3",               // bản chính thức
-            "com.lagradost.cloudstream3.prerelease"     // bản prerelease
     };
 
     private static final String FPT = "com.fptplay.launcher";
@@ -241,20 +230,14 @@ public class ListenActivity extends Activity {
             return;
         }
 
-        // 2) Whole sentence is "tv", "tivi" or "tổng hợp" (optionally "mở tivi"...): open CloudStream.
-        if (CLOUDSTREAM_KEYWORDS.contains(ChannelMatcher.stripFiller(Text.norm(text)))) {
-            launcher.openCloudStream();
-            return;
-        }
-
-        // 3) Whole sentence is a channel name: open that channel.
+        // 2) Whole sentence is a channel name: open that channel.
         String channel = channelMatcher.find(text);
         if (channel != null) {
             launcher.openChannel(channel);
             return;
         }
 
-        // 4) Fallback: search the whole sentence on YouTube.
+        // 3) Fallback: search the whole sentence on YouTube.
         launcher.searchYoutube(text);
     }
 
@@ -340,10 +323,9 @@ public class ListenActivity extends Activity {
         }
     }
 
-    /** Starts SmartTube / TizenTube, CloudStream and FPT Play. */
+    /** Starts SmartTube / TizenTube and FPT Play. */
     private static final class AppLauncher {
         private static final String TXT_NO_SMARTTUBE = "Chưa cài SmartTube";
-        private static final String TXT_NO_CLOUDSTREAM = "Chưa cài CloudStream";
         private static final String TXT_NO_FPT = "Chưa cài FPT Play";
 
         private final Activity activity;
@@ -354,10 +336,6 @@ public class ListenActivity extends Activity {
 
         void openSmartTube() {
             if (!launchFirstInstalled(SMARTTUBE)) toast(TXT_NO_SMARTTUBE);
-        }
-
-        void openCloudStream() {
-            if (!launchFirstInstalled(CLOUDSTREAM)) toast(TXT_NO_CLOUDSTREAM);
         }
 
         void searchYoutube(String query) {
