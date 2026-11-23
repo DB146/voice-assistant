@@ -94,7 +94,24 @@ public class ListenActivity extends Activity {
             "hung-yen", "khanh-hoa", "an-giang-1", "quang-ngai-2", "lai-chau", "lam-dong",
             "lang-son", "lao-cai", "tay-ninh", "nghe-an", "ninh-binh", "khanh-hoa-1", "phu-tho",
             "quang-ngai-1", "quang-ninh-1", "quang-ninh-3", "quang-tri", "can-tho-3", "son-la",
-            "thai-nguyen", "thanh-hoa", "vinh-long-5", "tuyen-quang", "da-vinci-learning"
+            "thai-nguyen", "thanh-hoa", "vinh-long-5", "tuyen-quang", "da-vinci-learning",
+            // International / entertainment (found in the FPT Play app, not yet verified on the box)
+            "animal-planet", "asian-food-channel", "australia-plus", "babytv-hd", "bbc-earth",
+            "bbc-lifestyle", "bbc-news", "cartoon-network", "channel-newsasia", "discovery-asia",
+            "fashion-tv", "france-24", "imovie-hd", "k-kids-hd", "k-plus", "kbs-world",
+            "max-by-hbo", "national-geographic-hd", "nhk-world-hd", "outdoor-channel",
+            "travel-living", "tv5-monde", "warner-tv",
+            // VTC / VTV / HTVC extras, shopping and news
+            "vtc3-hd", "vtc11-thieu-nhi", "vtc13-hd", "vtc14-hd", "yeah1-family-vtc4",
+            "todaytv-vtc7", "vtv-can-tho", "vtv-hyundai-homeshopping", "htvc-ca-nhac",
+            "htvc-shopping", "gs-shop", "quoc-hoi-hd", "thong-tan-xa-viet-nam",
+            "truyen-hinh-nhan-dan", "thp-plus",
+            // Provincial stations
+            "ba-ria-vung-tau", "bac-giang", "bac-kan", "bac-lieu", "ben-tre", "binh-dinh",
+            "binh-duong-1", "binh-duong-2", "binh-duong-3", "binh-phuoc-1", "binh-thuan",
+            "ha-giang", "ha-nam", "hai-duong", "hau-giang", "hoa-binh", "kien-giang", "kon-tum",
+            "long-an", "nam-dinh", "ninh-thuan", "phu-yen", "quang-binh-tv", "quang-nam",
+            "soc-trang", "thai-binh", "tien-giang", "tra-vinh", "vinh-phuc", "yen-bai"
     };
 
     // ------------------------------------------------------------------- state
