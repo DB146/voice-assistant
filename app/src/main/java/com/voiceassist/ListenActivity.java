@@ -32,7 +32,6 @@ import java.util.regex.Pattern;
 /**
  * Voice launcher: listens for one sentence, then either
  *  - searches YouTube (SmartTube / TizenTube) when the sentence contains "youtube",
- *  - opens CloudStream when the sentence is just "tv",
  *  - opens an FPT Play channel when the sentence is a channel name,
  *  - otherwise searches the whole sentence on YouTube.
  *
@@ -52,10 +51,6 @@ public class ListenActivity extends Activity {
 
     private static final Pattern YOUTUBE = Pattern.compile("(?i)\\byou\\s?tube\\b");
 
-    // Saying just one of these (after filler like "mở", "xem") opens CloudStream. Normalized form.
-    private static final Set<String> CLOUDSTREAM_KEYWORDS =
-            new HashSet<>(Arrays.asList("tv", "tivi", "tong hop"));
-
     private static final String TXT_LISTENING = "Đang nghe…";
     private static final String TXT_HEARD = "Đã nghe…";
     private static final String TXT_CANCEL_HINT = "Nhấn Back để hủy";
@@ -63,21 +58,6 @@ public class ListenActivity extends Activity {
 
     private static final int PAD_H = 96, PAD_V = 48;
     private static final int SIZE_STATUS = 24, SIZE_HEARD = 40, SIZE_HINT = 20;
-
-    // YouTube client package names (tried in this order)
-    private static final String[] SMARTTUBE = {
-            "com.teamsmart.videomanager.tv",      // SmartTube bản chính thức
-            "com.liskovsoft.smarttubetv.beta",    // SmartTube bản beta
-            "io.gh.reisxd.tizentube.cobalt"       // TizenTube Cobalt
-    };
-
-    // CloudStream package names (tried in this order)
-    private static final String[] CLOUDSTREAM = {
-            "com.lagradost.cloudstream3",               // bản chính thức
-            "com.lagradost.cloudstream3.prerelease"     // bản prerelease
-    };
-
-    private static final String FPT = "com.fptplay.launcher";
 
     // ID kênh FPT Play. Nói tên kênh (bỏ gạch, bỏ "-hd"), ví dụ "vtv3", "htv7", "hà nội 1", "cần thơ 3".
     private static final String[] CHANNELS = {
@@ -258,20 +238,14 @@ public class ListenActivity extends Activity {
             return;
         }
 
-        // 2) Whole sentence is "tv", "tivi" or "tổng hợp" (optionally "mở tivi"...): open CloudStream.
-        if (CLOUDSTREAM_KEYWORDS.contains(ChannelMatcher.stripFiller(Text.norm(text)))) {
-            launcher.openCloudStream();
-            return;
-        }
-
-        // 3) Whole sentence is a channel name: open that channel.
+        // 2) Whole sentence is a channel name: open that channel.
         String channel = channelMatcher.find(text);
         if (channel != null) {
             launcher.openChannel(channel);
             return;
         }
 
-        // 4) Fallback: search the whole sentence on YouTube.
+        // 3) Fallback: search the whole sentence on YouTube.
         launcher.searchYoutube(text);
     }
 
@@ -279,18 +253,24 @@ public class ListenActivity extends Activity {
 
     private static final class Text {
         private static final Pattern DIGITS = Pattern.compile("\\d+");
+        private static final Pattern SYMBOLS = Pattern.compile("[^\\p{L}\\p{N} ]");
+        private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+        private static final Pattern ACCENT_MARKS = Pattern.compile("\\p{M}");
+        private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
+        private static final Pattern LETTER_THEN_NUMBER = Pattern.compile("([a-z])\\s+(\\d)");
 
         /** Strips symbols and collapses whitespace, keeping letters (with accents) and digits. */
         static String clean(String s) {
-            return s.replaceAll("[^\\p{L}\\p{N} ]", " ").trim().replaceAll("\\s+", " ");
+            String spaced = SYMBOLS.matcher(s).replaceAll(" ").trim();
+            return WHITESPACE.matcher(spaced).replaceAll(" ");
         }
 
         /** Lowercase, no accents, no symbols; joins "vtv 1" -> "vtv1". */
         static String norm(String s) {
-            s = Normalizer.normalize(s.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
-                    .replaceAll("\\p{M}", "").replace('đ', 'd');
-            s = s.replaceAll("[^a-z0-9]+", " ").trim();
-            return s.replaceAll("([a-z])\\s+(\\d)", "$1$2");
+            String decomposed = Normalizer.normalize(s.toLowerCase(Locale.ROOT), Normalizer.Form.NFD);
+            String plain = ACCENT_MARKS.matcher(decomposed).replaceAll("").replace('đ', 'd');
+            String words = NON_ALNUM.matcher(plain).replaceAll(" ").trim();
+            return LETTER_THEN_NUMBER.matcher(words).replaceAll("$1$2");
         }
 
         static int firstNumber(String s) {
@@ -357,10 +337,18 @@ public class ListenActivity extends Activity {
         }
     }
 
-    /** Starts SmartTube / TizenTube, CloudStream and FPT Play. */
+    /** Starts SmartTube / TizenTube and FPT Play. */
     private static final class AppLauncher {
+        // YouTube client package names (tried in this order)
+        private static final String[] SMARTTUBE_PACKAGES = {
+                "com.teamsmart.videomanager.tv",      // SmartTube bản chính thức
+                "com.liskovsoft.smarttubetv.beta",    // SmartTube bản beta
+                "io.gh.reisxd.tizentube.cobalt"       // TizenTube Cobalt
+        };
+
+        private static final String FPT_PACKAGE = "com.fptplay.launcher";
+
         private static final String TXT_NO_SMARTTUBE = "Chưa cài SmartTube";
-        private static final String TXT_NO_CLOUDSTREAM = "Chưa cài CloudStream";
         private static final String TXT_NO_FPT = "Chưa cài FPT Play";
 
         private final Activity activity;
@@ -370,31 +358,29 @@ public class ListenActivity extends Activity {
         }
 
         void openSmartTube() {
-            if (!launchFirstInstalled(SMARTTUBE)) toast(TXT_NO_SMARTTUBE);
-        }
-
-        void openCloudStream() {
-            if (!launchFirstInstalled(CLOUDSTREAM)) toast(TXT_NO_CLOUDSTREAM);
+            if (!launchFirstInstalled(SMARTTUBE_PACKAGES)) toast(TXT_NO_SMARTTUBE);
         }
 
         void searchYoutube(String query) {
             Uri uri = Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query));
-            for (String pkg : SMARTTUBE) {
-                try {
-                    activity.startActivity(new Intent(Intent.ACTION_VIEW, uri).setPackage(pkg));
-                    return;
-                } catch (ActivityNotFoundException | SecurityException ignored) {
-                }
+            for (String pkg : SMARTTUBE_PACKAGES) {
+                if (startView(uri, pkg)) return;
             }
             toast(TXT_NO_SMARTTUBE);
         }
 
         void openChannel(String id) {
+            Uri uri = Uri.parse("content://" + FPT_PACKAGE + "/SWITCH_CHANNEL/" + id);
+            if (!startView(uri, FPT_PACKAGE)) toast(TXT_NO_FPT);
+        }
+
+        /** Sends an ACTION_VIEW for {@code uri} to one specific app; false if it can't handle it. */
+        private boolean startView(Uri uri, String pkg) {
             try {
-                activity.startActivity(new Intent(Intent.ACTION_VIEW,
-                        Uri.parse("content://" + FPT + "/SWITCH_CHANNEL/" + id)).setPackage(FPT));
+                activity.startActivity(new Intent(Intent.ACTION_VIEW, uri).setPackage(pkg));
+                return true;
             } catch (ActivityNotFoundException | SecurityException e) {
-                toast(TXT_NO_FPT);
+                return false;
             }
         }
 
