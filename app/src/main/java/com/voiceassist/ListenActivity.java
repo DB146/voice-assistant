@@ -16,7 +16,6 @@ import android.speech.SpeechRecognizer;
 import android.view.Gravity;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -54,7 +53,6 @@ public class ListenActivity extends Activity {
     private static final String TXT_LISTENING = "Đang nghe…";
     private static final String TXT_HEARD = "Đã nghe…";
     private static final String TXT_CANCEL_HINT = "Nhấn Back để hủy";
-    private static final String TXT_NO_RECOGNITION = "Nhận dạng giọng nói không khả dụng";
 
     private static final int PAD_H = 96, PAD_V = 48;
     private static final int SIZE_STATUS = 24, SIZE_HEARD = 40, SIZE_HINT = 20;
@@ -169,7 +167,6 @@ public class ListenActivity extends Activity {
 
     private void startListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            Toast.makeText(this, TXT_NO_RECOGNITION, Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -348,9 +345,6 @@ public class ListenActivity extends Activity {
 
         private static final String FPT_PACKAGE = "com.fptplay.launcher";
 
-        private static final String TXT_NO_SMARTTUBE = "Chưa cài SmartTube";
-        private static final String TXT_NO_FPT = "Chưa cài FPT Play";
-
         private final Activity activity;
 
         AppLauncher(Activity activity) {
@@ -358,7 +352,7 @@ public class ListenActivity extends Activity {
         }
 
         void openSmartTube() {
-            if (!launchFirstInstalled(SMARTTUBE_PACKAGES)) toast(TXT_NO_SMARTTUBE);
+            launchFirstInstalled(SMARTTUBE_PACKAGES);
         }
 
         void searchYoutube(String query) {
@@ -366,12 +360,10 @@ public class ListenActivity extends Activity {
             for (String pkg : SMARTTUBE_PACKAGES) {
                 if (startView(uri, pkg)) return;
             }
-            toast(TXT_NO_SMARTTUBE);
         }
 
         void openChannel(String id) {
-            Uri uri = Uri.parse("content://" + FPT_PACKAGE + "/SWITCH_CHANNEL/" + id);
-            if (!startView(uri, FPT_PACKAGE)) toast(TXT_NO_FPT);
+            startView(Uri.parse("content://" + FPT_PACKAGE + "/SWITCH_CHANNEL/" + id), FPT_PACKAGE);
         }
 
         /** Sends an ACTION_VIEW for {@code uri} to one specific app; false if it can't handle it. */
@@ -384,24 +376,19 @@ public class ListenActivity extends Activity {
             }
         }
 
-        private boolean launchFirstInstalled(String[] packages) {
+        private void launchFirstInstalled(String[] packages) {
             for (String pkg : packages) {
                 Intent launch = launchIntentFor(pkg);
                 if (launch != null) {
                     activity.startActivity(launch);
-                    return true;
+                    return;
                 }
             }
-            return false;
         }
 
         private Intent launchIntentFor(String pkg) {
             Intent launch = activity.getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
             return launch != null ? launch : activity.getPackageManager().getLaunchIntentForPackage(pkg);
-        }
-
-        private void toast(String message) {
-            Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
         }
     }
 
